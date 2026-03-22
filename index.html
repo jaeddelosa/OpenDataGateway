@@ -1969,44 +1969,58 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 // Auth uses signInWithPopup — no redirect result to handle
 
+// ── Update header UI with signed-in user ──────────────────────────────────
+function updateUserUI(user) {
+  var gate         = document.getElementById('authGate');
+  var appContent   = document.getElementById('appContent');
+  var signInBtn    = document.getElementById('signInBtn');
+  var userMenuWrap = document.getElementById('userMenuWrap');
+
+  gate.style.display       = 'none';
+  appContent.style.display = 'block';
+  setAuthLoading(false);
+
+  // Use displayName — NEVER fall back to email for the display name
+  var name  = (user.displayName && user.displayName.trim()) ? user.displayName.trim() : 'User';
+  var email = user.email || '';
+  var photo = user.photoURL;
+
+  signInBtn.style.display    = 'none';
+  userMenuWrap.style.display = 'flex';
+
+  document.getElementById('userDisplayName').textContent = name.split(' ')[0];
+  document.getElementById('dropdownName').textContent    = name;
+  document.getElementById('dropdownEmail').textContent   = email;
+
+  var avatarImg         = document.getElementById('userAvatarImg');
+  var avatarPlaceholder = document.getElementById('userAvatarPlaceholder');
+  if (photo) {
+    avatarImg.src                   = photo;
+    avatarImg.style.display         = 'block';
+    avatarPlaceholder.style.display = 'none';
+  } else {
+    avatarImg.style.display         = 'none';
+    avatarPlaceholder.style.display = 'flex';
+    avatarPlaceholder.textContent   = name.charAt(0).toUpperCase();
+  }
+}
+
 // ── Auth state: gate or show app ───────────────────────────────────────────
 auth.onAuthStateChanged(function(user) {
-  var gate        = document.getElementById('authGate');
-  var appContent  = document.getElementById('appContent');
-  var signInBtn   = document.getElementById('signInBtn');
-  var userMenuWrap= document.getElementById('userMenuWrap');
-
   if (user) {
-    gate.style.display       = 'none';
-    appContent.style.display = 'block';
-    setAuthLoading(false);
-
-    var name  = user.displayName || user.email.split('@')[0] || 'User';
-    var email = user.email || '';
-    var photo = user.photoURL;
-
-    signInBtn.style.display    = 'none';
-    userMenuWrap.style.display = 'flex';
-
-    document.getElementById('userDisplayName').textContent = name.split(' ')[0];
-    document.getElementById('dropdownName').textContent    = name;
-    document.getElementById('dropdownEmail').textContent   = email;
-
-    var avatarImg         = document.getElementById('userAvatarImg');
-    var avatarPlaceholder = document.getElementById('userAvatarPlaceholder');
-    if (photo) {
-      avatarImg.src                   = photo;
-      avatarImg.style.display         = 'block';
-      avatarPlaceholder.style.display = 'none';
-    } else {
-      avatarImg.style.display         = 'none';
-      avatarPlaceholder.style.display = 'flex';
-      avatarPlaceholder.textContent   = name.charAt(0).toUpperCase();
-    }
+    // For email/password sign-UP, updateUserUI is called directly after
+    // updateProfile() so the name is already set. For all other cases
+    // (Google, returning users, email sign-in) we call it here.
+    updateUserUI(user);
   } else {
-    gate.style.display       = 'flex';
-    appContent.style.display = 'none';
-    signInBtn.style.display  = 'flex';
+    var gate         = document.getElementById('authGate');
+    var appContent   = document.getElementById('appContent');
+    var signInBtn    = document.getElementById('signInBtn');
+    var userMenuWrap = document.getElementById('userMenuWrap');
+
+    gate.style.display         = 'flex';
+    appContent.style.display   = 'none';
+    signInBtn.style.display    = 'flex';
     userMenuWrap.style.display = 'none';
     setAuthLoading(false);
   }
@@ -2120,10 +2134,11 @@ function handleEmailSignUp() {
   setAuthLoading(true);
   auth.createUserWithEmailAndPassword(email, password)
     .then(function(result) {
-      return result.user.updateProfile({ displayName: name });
-    })
-    .then(function() {
-      // onAuthStateChanged will fire automatically after profile update
+      // Update profile FIRST, then manually trigger the UI update
+      return result.user.updateProfile({ displayName: name }).then(function() {
+        // Force UI refresh with the now-updated user object
+        updateUserUI(result.user);
+      });
     })
     .catch(function(err) {
       setAuthLoading(false);
